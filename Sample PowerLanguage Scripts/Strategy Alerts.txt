@@ -1,0 +1,120 @@
+{
+Strategy Alerts
+By: Dennis Lyons
+December 2, 2020
+
+Calculates on every tick
+
+1. Checks for changes to strategy positioning
+2. Checks for inconsistent positioning between strategy & BrokerPingSeconds
+	(Pings broker to check every N secons - set by user input)
+3. Checks if chart auto trading status changed from enabled --> disabled
+
+Fires Alert (must be manually enabled on chart - can be used to send email)
+Saves a txt file to a user defined directory with the alert Message
+	- Can only create 1 file/alert per second
+	- Poll directory with Python script to send push alert via Telegram
+}
+
+[IntrabarOrderGeneration = true];
+
+Inputs:
+BrokerPingSeconds(15),
+Directory("C:\Users\Administrator\Documents\Alerts\");
+
+Vars:
+FileName(""),
+Path(""),
+TempTime(""),
+Message(""),
+RightTime(False),
+NewPos(0),
+BrokerPos(0),
+SecondsSincePing(0),
+NewAutoStatus(0),
+IntrabarPersist CurrPos(0),
+IntrabarPersist CurrAutoStatus(0),
+IntrabarPersist LastBrokerPing(ComputerDateTime);
+
+// ==================================================
+// Check for new position
+
+NewPos = MarketPosition * CurrentShares;
+
+if (NewPos <> CurrPos) then begin
+	Message = (Text(	"CHANGE IN MARKET POSITION",NewLine,
+				"Time: ", FormatTime("HH:mm:ss", ELTimeToDateTime_s(CurrentTime_s)),NewLine,
+				"Symbol: ",SymbolName,NewLine,
+				"Strategy Name: ",GetStrategyName,NewLine,
+				"Bar Type: ",BarType,NewLine,
+				"Old Position: ",CurrPos,NewLine,
+				"New Position: ",NewPos,NewLine
+				));
+	
+	// Save alert to txt file
+	TempTime= Text(CurrentTime_s);
+	FileName = Text(LeftStr(TempTime,6),"_Position_Alert.txt");
+	Path = Directory+ FileName;
+	Print(File(Path),Message);
+	
+	Alert(Message);
+
+end;
+
+CurrPos = NewPos;
+
+// ==================================================
+// Check for broker position mismatch
+
+SecondsSincePing = (ComputerDateTime - LastBrokerPing) / ELTimeToDateTime_s(1);
+
+// Only bother pinging broker if autotrading is turned on (returns 1)
+if (GetAppInfo(aiStrategyAuto) = 1) and (SecondsSincePing > BrokerPingSeconds) then begin
+
+	BrokerPos = MarketPosition_At_Broker;
+	LastBrokerPing = ComputerDateTime;
+	
+	if CurrPos <> BrokerPos then begin
+		Message = (Text(	"WARNING! BROKER AND STRATEGY POSITION MISALIGNED!!",NewLine,
+					"Time: ", FormatTime("HH:mm:ss", ELTimeToDateTime_s(CurrentTime_s)),NewLine,
+					"Symbol: ",SymbolName,NewLine,
+					"Strategy Name: ",GetStrategyName,NewLine,
+					"Bar Type: ",BarType,NewLine,
+					"Strategy Position: ",CurrPos,NewLine,
+					"Broker Position: ",BrokerPos,NewLine
+					));
+		
+		// Save alert to txt file
+		TempTime= Text(CurrentTime_s);
+		FileName = Text(LeftStr(TempTime,6),"_Misalignment_Alert.txt");
+		Path = Directory+ FileName;
+		Print(File(Path),Message);
+		
+		Alert(Message);
+
+	end;
+end;
+
+// ==================================================
+// Check for disabled auto trading
+
+NewAutoStatus = GetAppInfo(aiStrategyAuto);
+
+if (CurrAutoStatus = 1) and (NewAutoStatus = 0) then begin
+	Message = (Text(	"WARNING! AUTO TRADING DISABLED!!",NewLine,
+				"Time: ", FormatTime("HH:mm:ss", ELTimeToDateTime_s(CurrentTime_s)),NewLine,
+				"Symbol: ",SymbolName,NewLine,
+				"Strategy Name: ",GetStrategyName,NewLine,
+				"Bar Type: ",BarType,NewLine
+				));
+	
+	// Save alert to txt file
+	TempTime= Text(CurrentTime_s);
+	FileName = Text(LeftStr(TempTime,6),"_Autotrading_Alert.txt");
+	Path = Directory+ FileName;
+	Print(File(Path),Message);
+	
+	Alert(Message);
+end;
+CurrAutoStatus = NewAutoStatus;
+

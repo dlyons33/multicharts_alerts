@@ -1,0 +1,87 @@
+{
+Data Connection Alert
+By: Dennis Lyons
+December 1, 2020
+
+Goal: Alert user to drops in data connections when the user is away from their desktop or running Multicharts on a cloud server
+
+Description:
+Multicharts does not have any event handler that can alert a script to a drop in the data feed (that I know of).
+This script takes a "dumb" approach by assuming that if no new tick is received in N seconds (selected by user input),
+then the data connection must have dropped.
+Suggested use: set up a separate chart for SPY solely for the purpose of monitoring the data connection.
+SPY is so active that you can keep a tight timer to minimize alert lag while still avoiding false alarms (because SPY ticks
+should be coming in non-stop during regular trading hours).
+
+How the script disseminates alerts to the user:
+(1) Create a new txt file (user can monitor the Root folder with a separate Python script & send alerts via Telegram app to smart phone)
+(2) Trigger MultiChart Alert (must be enabled on platform, can be used to send email)
+
+Note: as coded, this script will only create a txt file and trigger an alert once per minute
+
+Inputs:
+Timer: number of seconds to wait since last received tick before triggering alert
+Start & End times to monitor for data drop: input are 4 digit integers - HHMM
+DataSource: user input text included in the alert to ID the chart or data feed this script is monitoring
+Root: directory where script will create new txt file (poll this folder with Python script to monitor for alerts)
+
+}
+
+Inputs:
+Timer(30),
+StartTime(0930),
+EndTime(1600),
+DataSource("IQFeed"),
+Directory("C:\Users\Dennis\Desktop\");
+
+Vars:
+FileName(""),
+Path(""),
+TempTime(""),
+Message(""),
+CalcReason(0),
+RightTime(False),
+IntrabarPersist LastTrigTime(CurrentTime);
+
+// Set condition variables
+RightTime = (CurrentTime >= StartTime) and (CurrentTime <= EndTime);
+CalcReason = GetAppInfo(aiCalcReason); // GetAppInfo(aiCalcReason) will return 3 if recalculated due to timeout
+
+
+if (RightTime = True) then begin
+
+	// If recalculation was triggered by expiration of timer, alert user
+	if (CalcReason = 3) then begin
+	
+		Message = (	Text("DATA CONNECTION ALERT!",NewLine,
+				"Time: ", FormatTime("HH:mm:ss", ELTimeToDateTime_s(CurrentTime_s)),NewLine,
+				"Data Source: ",DataSource,NewLine,
+				"Timer Setting: ",Timer,NewLine)	);
+	
+		// Save alert to txt file
+		TempTime= Text(CurrentTime);
+		FileName = Text(LeftStr(TempTime,4),"_Data_Alert.txt");
+		Path = Directory+ FileName;
+		Print(File(Path),Message);
+		
+		// Trigger Alert if enabled
+		if (CheckAlert = True) and (LastTrigTime <> CurrentTime) then begin
+		
+			// Only fire off alert / email 1x per minute (CurrentTime returns minute frequency - HHMM)
+			LastTrigTime = CurrentTime;
+		
+			// Trigger Alert
+			Alert(Message);
+					
+		end;
+		
+	end;
+
+	// Reset timer
+	if (LastBarOnChart = True) then begin
+
+		RecalcLastBarAfter(Timer);
+		
+	end;
+end;
+
