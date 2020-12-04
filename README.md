@@ -3,7 +3,7 @@ Monitors for alerts from Multicharts and pushes through telegram
 
 With a PowerLanguage indicator or signal script:  
 Upon a condition you wish to receive alerts (if ... then begin ... end;)  
-Use: Print(<path>,<message>) to save a txt file to a set directory (path) with a given message (message).
+Use: Print(path,message) to save a txt file to a set directory with a given message.
 
 Create a config.cfg file with the following parameters:
 
